@@ -1,20 +1,167 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, SafeAreaView, Alert, ActivityIndicator, PanResponder, Animated, Dimensions, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import dayjs from 'dayjs';
-import { getEventsByDate, getEvents, createEvent, deleteEvent, type Event } from '@/api/events';
+import { getEventsByDate, getEvents, createEvent, updateEvent, deleteEvent, type Event } from '@/api/events';
 import { getEventColor, getColorForEvent, EVENT_COLORS, THEME } from '@/utils/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// 날짜 선택 컴포넌트 (Modal 내부에서 사용)
+type DatePickerProps = {
+  visible: boolean;
+  currentDate: string;
+  onSelect: (date: string) => void;
+  onClose: () => void;
+};
+
+// 색상 선택 컴포넌트 (Modal 내부에서 사용)
+type ColorPickerProps = {
+  visible: boolean;
+  selectedColor: string | null;
+  eventTitle: string;
+  onSelect: (color: string | null) => void;
+  onClose: () => void;
+};
+
+const ColorPicker: React.FC<ColorPickerProps> = ({ visible, selectedColor, eventTitle, onSelect, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <View style={styles.colorPickerOverlayContainer}>
+      <TouchableOpacity style={styles.colorPickerOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.colorPickerContainer}>
+            <Text style={styles.colorPickerTitle}>색상 선택</Text>
+            <View style={styles.colorPalette}>
+              <TouchableOpacity style={styles.colorOptionContainer} onPress={() => { onSelect(null); onClose(); }}>
+                <View style={[styles.colorOption, !selectedColor && styles.colorOptionSelected, { backgroundColor: getColorForEvent(eventTitle || '') }]}>
+                  {!selectedColor && <View style={styles.colorOptionCheckmark} />}
+                </View>
+                <Text style={styles.colorOptionLabel}>자동</Text>
+              </TouchableOpacity>
+              {EVENT_COLORS.map((color) => (
+                <TouchableOpacity key={color} style={styles.colorOptionContainer} onPress={() => { onSelect(color); onClose(); }}>
+                  <View style={[styles.colorOption, selectedColor === color && styles.colorOptionSelected, { backgroundColor: color }]}>
+                    {selectedColor === color && <View style={styles.colorOptionCheckmark} />}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const DatePicker: React.FC<DatePickerProps> = ({ visible, currentDate, onSelect, onClose }) => {
+  const [selectedMonth, setSelectedMonth] = useState(dayjs(currentDate || dayjs().format('YYYY-MM-DD')));
+  
+  useEffect(() => {
+    if (currentDate) {
+      setSelectedMonth(dayjs(currentDate));
+    }
+  }, [currentDate]);
+
+  if (!visible) return null;
+
+  const startOfMonth = selectedMonth.startOf('month');
+  const daysInMonth = selectedMonth.daysInMonth();
+  const startDay = startOfMonth.day();
+
+  const calendarDays = [];
+  for (let i = 0; i < startDay; i++) {
+    calendarDays.push({ label: '', iso: `empty-${i}`, isDay: false });
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    const dateObj = selectedMonth.date(i);
+    calendarDays.push({
+      label: i.toString(),
+      iso: dateObj.format('YYYY-MM-DD'),
+      isDay: true,
+    });
+  }
+
+  const weeks = [];
+  for (let i = 0; i < calendarDays.length; i += 7) {
+    const week = [...calendarDays.slice(i, i + 7)];
+    while (week.length < 7) {
+      week.push({ label: '', iso: `empty-${i + week.length}`, isDay: false });
+    }
+    weeks.push(week);
+  }
+
+  const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+
+  return (
+    <View style={styles.datePickerOverlayContainer}>
+      <TouchableOpacity style={styles.datePickerOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.datePickerContainer}>
+            <View style={styles.datePickerHeader}>
+              <TouchableOpacity onPress={() => setSelectedMonth(prev => prev.subtract(1, 'month'))}>
+                <Text style={styles.datePickerNav}>‹</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerTitle}>{selectedMonth.format('YYYY년 MM월')}</Text>
+              <TouchableOpacity onPress={() => setSelectedMonth(prev => prev.add(1, 'month'))}>
+                <Text style={styles.datePickerNav}>›</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerWeekLabels}>
+              {daysOfWeek.map((day, i) => (
+                <Text key={day} style={[styles.datePickerWeekLabel, i === 0 && { color: '#ef4444' }, i === 6 && { color: '#3b82f6' }]}>
+                  {day}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.datePickerGrid}>
+              {weeks.map((week, weekIndex) => (
+                <View key={weekIndex} style={styles.datePickerWeekRow}>
+                  {week.map((d) => {
+                    const isSelected = d.iso === currentDate;
+                    const isToday = d.iso === dayjs().format('YYYY-MM-DD');
+                    return (
+                      <TouchableOpacity
+                        key={d.iso}
+                        disabled={!d.isDay}
+                        style={[styles.datePickerDayCell, isSelected && styles.datePickerDaySelected]}
+                        onPress={() => {
+                          onSelect(d.iso);
+                          onClose();
+                        }}
+                      >
+                        <Text style={[styles.datePickerDayText, isToday && styles.datePickerTodayText, isSelected && { color: '#fff' }]}>
+                          {d.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const CalendarScreen: React.FC = () => {
   const [viewDate, setViewDate] = useState(dayjs());
   const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [events, setEvents] = useState<Event[]>([]);
   const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDescription, setNewEventDescription] = useState('');
+  const [newEventStartDate, setNewEventStartDate] = useState<string>('');
+  const [newEventEndDate, setNewEventEndDate] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const [eventFormVisible, setEventFormVisible] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [datePickerType, setDatePickerType] = useState<'start' | 'end'>('start');
 
   const translateX = useRef(new Animated.Value(0)).current;
   const [isAnimating, setIsAnimating] = useState(false);
@@ -22,29 +169,31 @@ const CalendarScreen: React.FC = () => {
   // --- 스와이프 제스처 처리 수정 ---
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !isAnimating,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return !isAnimating && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
       },
       onPanResponderMove: (_, gestureState) => {
-        translateX.setValue(gestureState.dx);
+        if (!isAnimating) {
+          translateX.setValue(gestureState.dx);
+        }
       },
       onPanResponderRelease: (_, gestureState) => {
-        const SWIPE_THRESHOLD = 50;
-        const SWIPE_VELOCITY_THRESHOLD = 0.3;
+        if (isAnimating) return;
+        
+        const SWIPE_THRESHOLD = 30;
+        const SWIPE_VELOCITY_THRESHOLD = 0.25;
 
         const shouldSwipe = 
           Math.abs(gestureState.dx) > SWIPE_THRESHOLD || 
           Math.abs(gestureState.vx) > SWIPE_VELOCITY_THRESHOLD;
 
-        if (shouldSwipe && !isAnimating) {
+        if (shouldSwipe) {
           setIsAnimating(true);
           
-          // dx > 0 이면 오른쪽으로 민 것(이전 달), dx < 0 이면 왼쪽으로 민 것(다음 달)
           const isRightSwipe = gestureState.dx > 0;
           const targetX = isRightSwipe ? SCREEN_WIDTH : -SCREEN_WIDTH;
           
-          // 먼저 날짜를 변경하여 데이터를 미리 로드
           if (isRightSwipe) {
             setViewDate((prev) => prev.subtract(1, 'month'));
           } else {
@@ -53,10 +202,9 @@ const CalendarScreen: React.FC = () => {
           
           Animated.timing(translateX, {
             toValue: targetX,
-            duration: 200,
+            duration: 250,
             useNativeDriver: true,
           }).start(() => {
-            // 애니메이션 완료 후 위치 리셋
             translateX.setValue(0);
             setIsAnimating(false);
           });
@@ -64,8 +212,18 @@ const CalendarScreen: React.FC = () => {
           Animated.spring(translateX, {
             toValue: 0,
             useNativeDriver: true,
-            tension: 50,
-            friction: 8,
+            tension: 65,
+            friction: 7,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        if (!isAnimating) {
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 7,
           }).start();
         }
       },
@@ -114,38 +272,102 @@ const CalendarScreen: React.FC = () => {
   const weeks = [];
   for (let i = 0; i < calendarDays.length; i += 7) {
     const week = [...calendarDays.slice(i, i + 7)];
-    // 마지막 주가 7개 미만이면 빈 셀로 채우기
     while (week.length < 7) {
       week.push({ label: '', iso: `empty-${i + week.length}`, isDay: false });
     }
     weeks.push(week);
   }
 
+  // 기간이 있는 일정인지 확인하고 날짜 범위 가져오기
+  const getEventDateRange = (event: Event) => {
+    if (event.start_at && event.end_at) {
+      const start = dayjs(event.start_at);
+      const end = dayjs(event.end_at);
+      return { start: start.format('YYYY-MM-DD'), end: end.format('YYYY-MM-DD'), hasRange: true };
+    }
+    return { start: event.date, end: event.date, hasRange: false };
+  };
+
+  // 특정 날짜에 표시할 일정들 가져오기 (기간 일정 포함)
+  const getEventsForDate = (date: string) => {
+    return events.filter(event => {
+      const range = getEventDateRange(event);
+      const dateObj = dayjs(date);
+      const startObj = dayjs(range.start);
+      const endObj = dayjs(range.end);
+      return (dateObj.isAfter(startObj, 'day') || dateObj.isSame(startObj, 'day')) && 
+             (dateObj.isBefore(endObj, 'day') || dateObj.isSame(endObj, 'day'));
+    });
+  };
+
   const handleAddEvent = async () => {
     if (!newEventTitle.trim()) {
       Alert.alert('알림', '일정 제목을 입력해주세요.');
       return;
     }
+
+    if (!newEventStartDate) {
+      Alert.alert('알림', '시작일을 선택해주세요.');
+      return;
+    }
+
+    const startDate = newEventStartDate || selectedDate;
+    const endDate = newEventEndDate || startDate;
+
+    if (dayjs(endDate).isBefore(startDate)) {
+      Alert.alert('알림', '종료일은 시작일보다 늦거나 같아야 합니다.');
+      return;
+    }
+
     setAdding(true);
     try {
       const color = selectedColor || getColorForEvent(newEventTitle.trim());
-      const response = await createEvent({
-        title: newEventTitle.trim(),
-        date: selectedDate,
-        color: color,
-      });
+      
+      const startAt = dayjs(startDate).startOf('day').format('YYYY-MM-DD HH:mm:ss');
+      const endAt = dayjs(endDate).endOf('day').format('YYYY-MM-DD HH:mm:ss');
+
+      const response = editingEvent 
+        ? await updateEvent(editingEvent.id, {
+            title: newEventTitle.trim(),
+            date: startDate,
+            description: newEventDescription.trim() || undefined,
+            start_at: startAt,
+            end_at: endAt,
+            color: color,
+          })
+        : await createEvent({
+            title: newEventTitle.trim(),
+            date: startDate,
+            description: newEventDescription.trim() || undefined,
+            start_at: startAt,
+            end_at: endAt,
+            color: color,
+          });
+
       if (response.success && response.data) {
-        // 새 일정이 현재 월에 속하면 events에 추가
-        const eventDate = dayjs(response.data.date);
-        if (eventDate.month() === viewDate.month() && eventDate.year() === viewDate.year()) {
-          setEvents((prev) => [...prev, response.data!]);
-        }
+        await loadMonthEvents();
         setNewEventTitle('');
+        setNewEventDescription('');
+        setNewEventStartDate('');
+        setNewEventEndDate('');
         setSelectedColor(null);
+        setEditingEvent(null);
+        handleCloseEventForm();
       }
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setNewEventTitle(event.title);
+    setNewEventDescription(event.description || '');
+    const range = getEventDateRange(event);
+    setNewEventStartDate(range.start);
+    setNewEventEndDate(range.end);
+    setSelectedColor(event.color || null);
+    setEventFormVisible(true);
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -157,14 +379,34 @@ const CalendarScreen: React.FC = () => {
         onPress: async () => {
           const response = await deleteEvent(id);
           if (response.success) {
-            setEvents((prev) => prev.filter((e) => e.id !== id));
+            await loadMonthEvents();
           }
         },
       },
     ]);
   };
 
-  const filteredEvents = events.filter((e) => e.date === selectedDate);
+  const handleOpenEventForm = () => {
+    setEditingEvent(null);
+    setNewEventTitle('');
+    setNewEventDescription('');
+    setNewEventStartDate(selectedDate);
+    setNewEventEndDate(selectedDate);
+    setSelectedColor(null);
+    setEventFormVisible(true);
+  };
+
+  const handleCloseEventForm = () => {
+    setEventFormVisible(false);
+    setEditingEvent(null);
+    setNewEventTitle('');
+    setNewEventDescription('');
+    setNewEventStartDate('');
+    setNewEventEndDate('');
+    setSelectedColor(null);
+  };
+
+  const filteredEvents = getEventsForDate(selectedDate);
   const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
 
   return (
@@ -174,10 +416,8 @@ const CalendarScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
+        <View 
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.monthHeader}>
             <Text style={styles.headerTitle}>{viewDate.format('YYYY년 MM월')}</Text>
@@ -199,6 +439,18 @@ const CalendarScreen: React.FC = () => {
                 {week.map((d) => {
                   const isSelected = d.iso === selectedDate;
                   const isToday = d.iso === dayjs().format('YYYY-MM-DD');
+                  const dayEvents = d.isDay ? getEventsForDate(d.iso) : [];
+                  
+                  // 기간 일정들과 단일 일정들을 구분
+                  const rangeEvents = dayEvents.filter(e => {
+                    const range = getEventDateRange(e);
+                    return range.hasRange && range.start !== range.end;
+                  });
+                  const singleEvents = dayEvents.filter(e => {
+                    const range = getEventDateRange(e);
+                    return !range.hasRange || range.start === range.end;
+                  });
+
                   return (
                     <TouchableOpacity
                       key={d.iso}
@@ -209,25 +461,61 @@ const CalendarScreen: React.FC = () => {
                       <Text style={[styles.dayText, isToday && styles.todayText, isSelected && { color: '#fff' }]}>
                         {d.label}
                       </Text>
-                      {d.isDay && (() => {
-                        const dayEvents = events.filter(e => e.date === d.iso);
-                        if (dayEvents.length === 0) return null;
-                        const eventsToShow = dayEvents.slice(0, 2);
-                        return (
-                          <View style={styles.eventLabelsContainer}>
-                            {eventsToShow.map((event, idx) => {
-                              const eventColor = getEventColor(event);
-                              return (
-                                <View key={event.id || idx} style={[styles.eventLabel, { backgroundColor: eventColor }]}>
-                                  <Text style={styles.eventLabelText} numberOfLines={1} ellipsizeMode="tail">
+                      {d.isDay && (
+                        <View style={styles.eventLabelsContainer}>
+                          {/* 기간 일정 막대들 - 세로로 배치 */}
+                          {rangeEvents.map((event) => {
+                            const range = getEventDateRange(event);
+                            const eventColor = getEventColor(event);
+                            const startObj = dayjs(range.start);
+                            const endObj = dayjs(range.end);
+                            const currentObj = dayjs(d.iso);
+                            const isStart = currentObj.isSame(startObj, 'day');
+                            const isEnd = currentObj.isSame(endObj, 'day');
+                            
+                            return (
+                              <View 
+                                key={event.id} 
+                                style={[
+                                  styles.eventRangeBar,
+                                  { 
+                                    backgroundColor: eventColor,
+                                    marginLeft: isStart ? 2 : -1,
+                                    marginRight: isEnd ? 2 : -1,
+                                    paddingLeft: isStart ? 4 : 0,
+                                    paddingRight: isEnd ? 4 : 0,
+                                    borderTopLeftRadius: isStart ? 4 : 0,
+                                    borderBottomLeftRadius: isStart ? 4 : 0,
+                                    borderTopRightRadius: isEnd ? 4 : 0,
+                                    borderBottomRightRadius: isEnd ? 4 : 0,
+                                  }
+                                ]}
+                              >
+                                {isStart && (
+                                  <Text 
+                                    style={styles.eventRangeBarText}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                  >
                                     {event.title}
                                   </Text>
-                                </View>
-                              );
-                            })}
-                          </View>
-                        );
-                      })()}
+                                )}
+                              </View>
+                            );
+                          })}
+                          {/* 단일 일정 라벨들 - 세로로 배치 */}
+                          {singleEvents.map((event) => {
+                            const eventColor = getEventColor(event);
+                            return (
+                              <View key={event.id} style={[styles.eventLabel, { backgroundColor: eventColor }]}>
+                                <Text style={styles.eventLabelText} numberOfLines={1} ellipsizeMode="tail">
+                                  {event.title}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -241,45 +529,178 @@ const CalendarScreen: React.FC = () => {
 
       <View style={styles.selectedDateInfo}>
         <Text style={styles.infoText}>{dayjs(selectedDate).format('MM월 DD일')} 일정</Text>
-      </View>
-      
-      <View style={styles.addRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="새 일정 입력"
-          value={newEventTitle}
-          onChangeText={setNewEventTitle}
-          editable={!adding}
-        />
-        <TouchableOpacity style={styles.colorPickerButton} onPress={() => setColorPickerVisible(true)} disabled={adding}>
-          <View style={[styles.colorIndicator, { backgroundColor: selectedColor || getColorForEvent(newEventTitle || '') }]} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.addButton, adding && styles.buttonDisabled]} onPress={handleAddEvent} disabled={adding}>
-          {adding ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.addButtonText}>추가</Text>}
+        <TouchableOpacity 
+          style={styles.addEventButton} 
+          onPress={handleOpenEventForm}
+          disabled={adding}
+        >
+          <Text style={styles.addEventButtonText}>+ 일정 추가</Text>
         </TouchableOpacity>
       </View>
 
-      <Modal visible={colorPickerVisible} transparent animationType="fade">
-        <TouchableOpacity style={styles.colorPickerOverlay} activeOpacity={1} onPress={() => setColorPickerVisible(false)}>
-          <View style={styles.colorPickerContainer}>
-            <Text style={styles.colorPickerTitle}>색상 선택</Text>
-            <View style={styles.colorPalette}>
-              <TouchableOpacity style={styles.colorOptionContainer} onPress={() => { setSelectedColor(null); setColorPickerVisible(false); }}>
-                <View style={[styles.colorOption, !selectedColor && styles.colorOptionSelected, { backgroundColor: getColorForEvent(newEventTitle || '') }]}>
-                  {!selectedColor && <View style={styles.colorOptionCheckmark} />}
+      <Modal visible={eventFormVisible} transparent animationType="slide" onRequestClose={handleCloseEventForm}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableOpacity 
+            style={styles.modalBackdrop} 
+            activeOpacity={1} 
+            onPress={handleCloseEventForm}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.eventFormContainer}>
+                <View style={styles.eventFormHeader}>
+                  <Text style={styles.eventFormTitle}>{editingEvent ? '일정 수정' : '일정 추가'}</Text>
+                  <TouchableOpacity onPress={handleCloseEventForm}>
+                    <Text style={styles.closeButton}>✕</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.colorOptionLabel}>자동</Text>
-              </TouchableOpacity>
-              {EVENT_COLORS.map((color) => (
-                <TouchableOpacity key={color} style={styles.colorOptionContainer} onPress={() => { setSelectedColor(color); setColorPickerVisible(false); }}>
-                  <View style={[styles.colorOption, selectedColor === color && styles.colorOptionSelected, { backgroundColor: color }]}>
-                    {selectedColor === color && <View style={styles.colorOptionCheckmark} />}
+
+                <DatePicker
+                  visible={datePickerVisible}
+                  currentDate={datePickerType === 'start' ? newEventStartDate : newEventEndDate}
+                  onSelect={(date) => {
+                    if (datePickerType === 'start') {
+                      setNewEventStartDate(date);
+                      if (!newEventEndDate || dayjs(date).isAfter(newEventEndDate)) {
+                        setNewEventEndDate(date);
+                      }
+                    } else {
+                      setNewEventEndDate(date);
+                    }
+                    setDatePickerVisible(false);
+                  }}
+                  onClose={() => setDatePickerVisible(false)}
+                />
+
+                <ColorPicker
+                  visible={colorPickerVisible}
+                  selectedColor={selectedColor}
+                  eventTitle={newEventTitle}
+                  onSelect={(color) => setSelectedColor(color)}
+                  onClose={() => setColorPickerVisible(false)}
+                />
+
+                <ScrollView style={styles.eventFormScroll} showsVerticalScrollIndicator={false}>
+                  <View style={styles.eventFormField}>
+                    <Text style={styles.eventFormLabel}>제목 *</Text>
+                    <TextInput
+                      style={styles.eventFormInput}
+                      placeholder="일정 제목"
+                      value={newEventTitle}
+                      onChangeText={setNewEventTitle}
+                      editable={!adding}
+                    />
                   </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
+
+                  <View style={styles.eventFormField}>
+                    <Text style={styles.eventFormLabel}>세부 정보</Text>
+                    <TextInput
+                      style={[styles.eventFormInput, styles.eventFormTextArea]}
+                      placeholder="세부 정보를 입력하세요"
+                      value={newEventDescription}
+                      onChangeText={setNewEventDescription}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      editable={!adding}
+                    />
+                  </View>
+
+                  <View style={styles.eventFormField}>
+                    <Text style={styles.eventFormLabel}>시작일 *</Text>
+                    <TouchableOpacity
+                      style={styles.eventFormInput}
+                      onPress={() => {
+                        setDatePickerType('start');
+                        setDatePickerVisible(true);
+                      }}
+                      disabled={adding}
+                    >
+                      <Text style={[styles.eventFormDateText, !newEventStartDate && styles.eventFormDatePlaceholder]}>
+                        {newEventStartDate ? dayjs(newEventStartDate).format('YYYY년 MM월 DD일') : '시작일 선택'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.eventFormField}>
+                    <Text style={styles.eventFormLabel}>종료일</Text>
+                    <TouchableOpacity
+                      style={styles.eventFormInput}
+                      onPress={() => {
+                        setDatePickerType('end');
+                        setDatePickerVisible(true);
+                      }}
+                      disabled={adding}
+                    >
+                      <Text style={[styles.eventFormDateText, !newEventEndDate && styles.eventFormDatePlaceholder]}>
+                        {newEventEndDate ? dayjs(newEventEndDate).format('YYYY년 MM월 DD일') : '종료일 선택 (선택사항)'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.eventFormField}>
+                    <Text style={styles.eventFormLabel}>색상</Text>
+                    <TouchableOpacity 
+                      style={styles.eventFormColorRow} 
+                      onPress={() => setColorPickerVisible(true)} 
+                      disabled={adding}
+                    >
+                      <View style={[styles.eventFormColorIndicator, { backgroundColor: selectedColor || getColorForEvent(newEventTitle || '') }]} />
+                      <Text style={styles.eventFormColorText}>
+                        {selectedColor ? '색상 선택됨' : '자동'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+
+                <View style={styles.eventFormActions}>
+                  {editingEvent && (
+                    <TouchableOpacity 
+                      style={[styles.eventFormDeleteButton]} 
+                      onPress={() => {
+                        Alert.alert('일정 삭제', '정말 이 일정을 삭제하시겠습니까?', [
+                          { text: '취소', style: 'cancel' },
+                          {
+                            text: '삭제',
+                            style: 'destructive',
+                            onPress: async () => {
+                              await handleDeleteEvent(editingEvent.id);
+                              handleCloseEventForm();
+                            },
+                          },
+                        ]);
+                      }}
+                      disabled={adding}
+                    >
+                      <Text style={styles.eventFormDeleteText}>삭제</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity 
+                    style={[styles.eventFormCancelButton]} 
+                    onPress={handleCloseEventForm}
+                    disabled={adding}
+                  >
+                    <Text style={styles.eventFormCancelText}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.eventFormSubmitButton, adding && styles.buttonDisabled]} 
+                    onPress={handleAddEvent} 
+                    disabled={adding}
+                  >
+                    {adding ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.eventFormSubmitText}>{editingEvent ? '수정' : '추가'}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
           <View style={styles.eventsContainer}>
@@ -291,57 +712,68 @@ const CalendarScreen: React.FC = () => {
                 keyExtractor={(item) => item.id}
                 ListEmptyComponent={<Text style={styles.emptyText}>일정이 없습니다.</Text>}
                 renderItem={({ item }) => (
-                  <View style={styles.eventItem}>
+                  <TouchableOpacity 
+                    style={styles.eventItem}
+                    onPress={() => handleEditEvent(item)}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.eventItemContent}>
                       <View style={[styles.eventColorBar, { backgroundColor: getEventColor(item) }]} />
-                      <Text style={styles.eventTitle}>{item.title}</Text>
+                      <View style={styles.eventItemTextContainer}>
+                        <Text style={styles.eventTitle}>{item.title}</Text>
+                        {(() => {
+                          const range = getEventDateRange(item);
+                          if (range.hasRange && range.start !== range.end) {
+                            return (
+                              <Text style={styles.eventDateRange}>
+                                {dayjs(range.start).format('MM/DD')} - {dayjs(range.end).format('MM/DD')}
+                              </Text>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </View>
                     </View>
                     <TouchableOpacity onPress={() => handleDeleteEvent(item.id)}>
                       <Text style={styles.deleteText}>삭제</Text>
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 )}
               />
             )}
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
-// ... 기존 스타일 코드와 동일 ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.background, paddingHorizontal: 16 },
   keyboardAvoidingView: { flex: 1 },
-  scrollView: { flex: 1 },
-  scrollViewContent: { flexGrow: 1, paddingBottom: 20 },
+  scrollView: { flex: 1, paddingBottom: 20 },
   monthHeader: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 6, marginBottom: 6, paddingVertical: 2 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: THEME.text, letterSpacing: 0.3 },
-  calendarContainer: { overflow: 'hidden', backgroundColor: THEME.backgroundWhite, borderRadius: 20, padding: 10, marginBottom: 4, shadowColor: THEME.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, flex: 1 },
+  calendarContainer: { backgroundColor: THEME.backgroundWhite, borderRadius: 20, padding: 10, marginBottom: 4, shadowColor: THEME.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, flex: 1 },
   calendarContent: { width: '100%' },
   weekLabels: { flexDirection: 'row', marginBottom: 6, paddingHorizontal: 4 },
   weekLabelText: { flex: 1, textAlign: 'center', fontWeight: '600', color: THEME.textSecondary, fontSize: 13 },
   gridContainer: { width: '100%' },
-  weekRow: { flexDirection: 'row', width: '100%' },
-  dayCell: { flex: 1, minHeight: 80, justifyContent: 'flex-start', alignItems: 'center', marginBottom: 3, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 2 },
+  weekRow: { flexDirection: 'row', width: '100%', position: 'relative' },
+  dayCell: { flex: 1, minHeight: 80, justifyContent: 'flex-start', alignItems: 'center', marginBottom: 3, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 0 },
   daySelected: { backgroundColor: THEME.primary },
   dayText: { fontSize: 15, color: THEME.text, fontWeight: '500', marginBottom: 2 },
   todayText: { fontWeight: '700', color: THEME.primary },
   eventLabelsContainer: { width: '100%', alignItems: 'center', marginTop: 2, gap: 2 },
   eventLabel: { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4, width: '95%', minHeight: 16, justifyContent: 'center' },
   eventLabelText: { fontSize: 9, color: '#ffffff', fontWeight: '500', textAlign: 'center' },
+  eventRangeBar: { paddingVertical: 2, minHeight: 16, width: '100%', justifyContent: 'center', marginBottom: 2 },
+  eventRangeBarText: { fontSize: 9, color: '#ffffff', fontWeight: '500', flexShrink: 0, overflow: 'visible' },
   divider: { height: 1, backgroundColor: THEME.borderLight, marginVertical: 8 },
-  selectedDateInfo: { marginBottom: 6, paddingLeft: 4 },
+  selectedDateInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, paddingLeft: 4, paddingRight: 4 },
   infoText: { fontSize: 16, fontWeight: '700', color: THEME.text },
-  addRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'center' },
-  input: { flex: 1, borderWidth: 1.5, borderColor: THEME.border, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginRight: 10, backgroundColor: THEME.backgroundWhite },
-  colorPickerButton: { width: 44, height: 44, marginRight: 10, justifyContent: 'center', alignItems: 'center' },
-  colorIndicator: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: THEME.borderLight },
-  addButton: { backgroundColor: THEME.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16 },
-  addButtonText: { color: '#fff', fontWeight: '700' },
-  colorPickerOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  colorPickerContainer: { backgroundColor: THEME.backgroundWhite, borderRadius: 24, padding: 24, width: '80%' },
+  addEventButton: { backgroundColor: THEME.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12 },
+  addEventButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   colorPickerTitle: { fontSize: 20, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
   colorPalette: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   colorOptionContainer: { alignItems: 'center' },
@@ -351,13 +783,55 @@ const styles = StyleSheet.create({
   colorOptionLabel: { fontSize: 12, marginTop: 6, color: THEME.textSecondary },
   eventItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginBottom: 4, backgroundColor: THEME.backgroundWhite, borderRadius: 16 },
   eventItemContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  eventItemTextContainer: { flex: 1 },
   eventColorBar: { width: 5, height: 36, borderRadius: 3, marginRight: 14 },
   eventTitle: { fontSize: 16, flex: 1, color: THEME.text },
+  eventDateRange: { fontSize: 12, color: THEME.textSecondary, marginTop: 2 },
   deleteText: { color: THEME.error, fontWeight: '600', paddingHorizontal: 12 },
   emptyText: { textAlign: 'center', marginTop: 10, color: THEME.textLight },
   buttonDisabled: { opacity: 0.6 },
   loadingContainer: { justifyContent: 'center', alignItems: 'center', paddingTop: 10, minHeight: 60 },
-  eventsContainer: { maxHeight: 220, flex: 0 }
+  eventsContainer: { maxHeight: 220, flex: 0 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end' },
+  eventFormContainer: { backgroundColor: THEME.backgroundWhite, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', paddingBottom: Platform.OS === 'ios' ? 20 : 10, position: 'relative' },
+  eventFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: THEME.borderLight },
+  eventFormTitle: { fontSize: 20, fontWeight: '700', color: THEME.text },
+  closeButton: { fontSize: 24, color: THEME.textSecondary, lineHeight: 24 },
+  eventFormScroll: { maxHeight: 400, paddingHorizontal: 20 },
+  eventFormField: { marginTop: 20 },
+  eventFormLabel: { fontSize: 14, fontWeight: '600', color: THEME.text, marginBottom: 8 },
+  eventFormInput: { borderWidth: 1.5, borderColor: THEME.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: THEME.backgroundWhite, fontSize: 16, color: THEME.text, justifyContent: 'center' },
+  eventFormDateText: { fontSize: 16, color: THEME.text },
+  eventFormDatePlaceholder: { color: THEME.textLight },
+  eventFormTextArea: { minHeight: 100, paddingTop: 12 },
+  eventFormColorRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: THEME.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: THEME.backgroundWhite },
+  eventFormColorIndicator: { width: 32, height: 32, borderRadius: 16, marginRight: 12, borderWidth: 2, borderColor: THEME.borderLight },
+  eventFormColorText: { fontSize: 16, color: THEME.text },
+  eventFormActions: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 12, borderTopWidth: 1, borderTopColor: THEME.borderLight },
+  eventFormCancelButton: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: THEME.borderLight, alignItems: 'center' },
+  eventFormCancelText: { fontSize: 16, fontWeight: '600', color: THEME.text },
+  eventFormDeleteButton: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: THEME.error, alignItems: 'center' },
+  eventFormDeleteText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  eventFormSubmitButton: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: THEME.primary, alignItems: 'center' },
+  eventFormSubmitText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  datePickerOverlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 },
+  datePickerOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  datePickerContainer: { backgroundColor: THEME.backgroundWhite, borderRadius: 24, padding: 20, width: '90%', maxWidth: 400 },
+  colorPickerOverlayContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 },
+  colorPickerOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  colorPickerContainer: { backgroundColor: THEME.backgroundWhite, borderRadius: 24, padding: 24, width: '80%' },
+  datePickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  datePickerTitle: { fontSize: 18, fontWeight: '700', color: THEME.text },
+  datePickerNav: { fontSize: 24, color: THEME.primary, fontWeight: '700', paddingHorizontal: 16 },
+  datePickerWeekLabels: { flexDirection: 'row', marginBottom: 8 },
+  datePickerWeekLabel: { flex: 1, textAlign: 'center', fontWeight: '600', color: THEME.textSecondary, fontSize: 13 },
+  datePickerGrid: { marginTop: 8 },
+  datePickerWeekRow: { flexDirection: 'row', marginBottom: 4 },
+  datePickerDayCell: { flex: 1, aspectRatio: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 8, margin: 2 },
+  datePickerDaySelected: { backgroundColor: THEME.primary },
+  datePickerDayText: { fontSize: 14, color: THEME.text, fontWeight: '500' },
+  datePickerTodayText: { fontWeight: '700', color: THEME.primary },
 });
 
 export default CalendarScreen;
