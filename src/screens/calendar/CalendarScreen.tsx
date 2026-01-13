@@ -301,25 +301,25 @@ const CalendarScreen: React.FC = () => {
 // ... 기존 스타일 코드와 동일 ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.background, paddingHorizontal: 16 },
-  monthHeader: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8, marginBottom: 8, paddingVertical: 4 },
+  monthHeader: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 6, marginBottom: 6, paddingVertical: 2 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: THEME.text, letterSpacing: 0.3 },
-  calendarContainer: { overflow: 'hidden', backgroundColor: THEME.backgroundWhite, borderRadius: 20, padding: 10, marginBottom: 6, shadowColor: THEME.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, flex: 1 },
+  calendarContainer: { overflow: 'hidden', backgroundColor: THEME.backgroundWhite, borderRadius: 20, padding: 10, marginBottom: 4, shadowColor: THEME.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, flex: 1 },
   calendarContent: { width: '100%' },
-  weekLabels: { flexDirection: 'row', marginBottom: 8, paddingHorizontal: 4 },
+  weekLabels: { flexDirection: 'row', marginBottom: 6, paddingHorizontal: 4 },
   weekLabelText: { flex: 1, textAlign: 'center', fontWeight: '600', color: THEME.textSecondary, fontSize: 13 },
   gridContainer: { width: '100%' },
   weekRow: { flexDirection: 'row', width: '100%' },
-  dayCell: { flex: 1, minHeight: 75, justifyContent: 'flex-start', alignItems: 'center', marginBottom: 4, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 2 },
+  dayCell: { flex: 1, minHeight: 80, justifyContent: 'flex-start', alignItems: 'center', marginBottom: 3, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 2 },
   daySelected: { backgroundColor: THEME.primary },
   dayText: { fontSize: 15, color: THEME.text, fontWeight: '500', marginBottom: 2 },
   todayText: { fontWeight: '700', color: THEME.primary },
   eventLabelsContainer: { width: '100%', alignItems: 'center', marginTop: 2, gap: 2 },
   eventLabel: { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4, width: '95%', minHeight: 16, justifyContent: 'center' },
   eventLabelText: { fontSize: 9, color: '#ffffff', fontWeight: '500', textAlign: 'center' },
-  divider: { height: 1, backgroundColor: THEME.borderLight, marginVertical: 12 },
-  selectedDateInfo: { marginBottom: 8, paddingLeft: 4 },
+  divider: { height: 1, backgroundColor: THEME.borderLight, marginVertical: 8 },
+  selectedDateInfo: { marginBottom: 6, paddingLeft: 4 },
   infoText: { fontSize: 16, fontWeight: '700', color: THEME.text },
-  addRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'center' },
+  addRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'center' },
   input: { flex: 1, borderWidth: 1.5, borderColor: THEME.border, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginRight: 10, backgroundColor: THEME.backgroundWhite },
   colorPickerButton: { width: 44, height: 44, marginRight: 10, justifyContent: 'center', alignItems: 'center' },
   colorIndicator: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: THEME.borderLight },
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', marginTop: 10, color: THEME.textLight },
   buttonDisabled: { opacity: 0.6 },
   loadingContainer: { justifyContent: 'center', alignItems: 'center', paddingTop: 10, minHeight: 60 },
-  eventsContainer: { maxHeight: 180, flex: 0 }
+  eventsContainer: { maxHeight: 220, flex: 0 }
 });
 
 export default CalendarScreen;
