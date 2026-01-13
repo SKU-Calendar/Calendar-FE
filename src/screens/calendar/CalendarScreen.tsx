@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, SafeAreaView, Alert, ActivityIndicator, PanResponder, Animated, Dimensions, Modal } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, SafeAreaView, Alert, ActivityIndicator, PanResponder, Animated, Dimensions, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import dayjs from 'dayjs';
 import { getEventsByDate, getEvents, createEvent, deleteEvent, type Event } from '@/api/events';
 import { getEventColor, getColorForEvent, EVENT_COLORS, THEME } from '@/utils/colors';
@@ -169,19 +169,29 @@ const CalendarScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.monthHeader}>
-        <Text style={styles.headerTitle}>{viewDate.format('YYYY년 MM월')}</Text>
-      </View>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.monthHeader}>
+            <Text style={styles.headerTitle}>{viewDate.format('YYYY년 MM월')}</Text>
+          </View>
 
-      <View style={styles.weekLabels}>
-        {daysOfWeek.map((day, i) => (
-          <Text key={day} style={[styles.weekLabelText, i === 0 && { color: '#ef4444' }, i === 6 && { color: '#3b82f6' }]}>
-            {day}
-          </Text>
-        ))}
-      </View>
+          <View style={styles.weekLabels}>
+            {daysOfWeek.map((day, i) => (
+              <Text key={day} style={[styles.weekLabelText, i === 0 && { color: '#ef4444' }, i === 6 && { color: '#3b82f6' }]}>
+                {day}
+              </Text>
+            ))}
+          </View>
 
-      <View style={styles.calendarContainer} {...panResponder.panHandlers}>
+          <View style={styles.calendarContainer} {...panResponder.panHandlers}>
         <Animated.View style={[styles.calendarContent, { transform: [{ translateX }] }]}>
           <View style={styles.gridContainer}>
             {weeks.map((week, weekIndex) => (
@@ -272,28 +282,30 @@ const CalendarScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
-      <View style={styles.eventsContainer}>
-      {loading && events.length === 0 ? (
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color={THEME.primary} /></View>
-      ) : (
-          <FlatList
-            data={filteredEvents}
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={<Text style={styles.emptyText}>일정이 없습니다.</Text>}
-            renderItem={({ item }) => (
-              <View style={styles.eventItem}>
-                <View style={styles.eventItemContent}>
-                  <View style={[styles.eventColorBar, { backgroundColor: getEventColor(item) }]} />
-                  <Text style={styles.eventTitle}>{item.title}</Text>
-                </View>
-                <TouchableOpacity onPress={() => handleDeleteEvent(item.id)}>
-                  <Text style={styles.deleteText}>삭제</Text>
-                </TouchableOpacity>
-              </View>
+          <View style={styles.eventsContainer}>
+            {loading && events.length === 0 ? (
+              <View style={styles.loadingContainer}><ActivityIndicator size="large" color={THEME.primary} /></View>
+            ) : (
+              <FlatList
+                data={filteredEvents}
+                keyExtractor={(item) => item.id}
+                ListEmptyComponent={<Text style={styles.emptyText}>일정이 없습니다.</Text>}
+                renderItem={({ item }) => (
+                  <View style={styles.eventItem}>
+                    <View style={styles.eventItemContent}>
+                      <View style={[styles.eventColorBar, { backgroundColor: getEventColor(item) }]} />
+                      <Text style={styles.eventTitle}>{item.title}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleDeleteEvent(item.id)}>
+                      <Text style={styles.deleteText}>삭제</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
             )}
-          />
-        )}
-      </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -301,6 +313,9 @@ const CalendarScreen: React.FC = () => {
 // ... 기존 스타일 코드와 동일 ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.background, paddingHorizontal: 16 },
+  keyboardAvoidingView: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollViewContent: { flexGrow: 1, paddingBottom: 20 },
   monthHeader: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 6, marginBottom: 6, paddingVertical: 2 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: THEME.text, letterSpacing: 0.3 },
   calendarContainer: { overflow: 'hidden', backgroundColor: THEME.backgroundWhite, borderRadius: 20, padding: 10, marginBottom: 4, shadowColor: THEME.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, flex: 1 },
