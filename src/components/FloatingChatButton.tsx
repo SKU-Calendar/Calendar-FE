@@ -5,8 +5,8 @@ import {
   Modal,
   StyleSheet,
   Text,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ChatScreen from '@/screens/chat/ChatScreen';
 import { THEME } from '@/utils/colors';
 

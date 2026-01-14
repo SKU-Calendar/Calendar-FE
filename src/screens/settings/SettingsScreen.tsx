@@ -1,16 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { logout } from '@/api/auth';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { THEME } from '@/utils/colors';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
 const SettingsScreen: React.FC = () => {
-  const navigation = useNavigation<NavigationProp>();
-
   const handleLogout = async () => {
     Alert.alert(
       '로그아웃',
@@ -23,12 +17,8 @@ const SettingsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await logout();
-              // 로그아웃 후 Auth 화면으로 이동
-              // RootNavigator에서 자동으로 처리되지만, 명시적으로 리셋할 수도 있습니다
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Auth' }],
-              });
+              // RootNavigator에서 isLoggedIn 상태가 변경되면 자동으로 Auth 화면으로 이동합니다
+              // navigation.reset은 필요하지 않습니다
             } catch (error: any) {
               Alert.alert('오류', error.message || '로그아웃 중 오류가 발생했습니다.');
             }

@@ -88,6 +88,16 @@ const RootNavigator = () => {
     checkAuthStatus();
   }, []);
 
+  // 주기적으로 인증 상태 확인 (로그아웃 감지)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const token = await getToken();
+      setIsLoggedIn(!!token);
+    }, 1000); // 1초마다 확인
+
+    return () => clearInterval(interval);
+  }, []);
+
   const checkAuthStatus = async () => {
     try {
       const token = await getToken();

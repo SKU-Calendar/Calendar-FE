@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, SafeAreaView, Alert, ActivityIndicator, PanResponder, Animated, Dimensions, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, ActivityIndicator, PanResponder, Animated, Dimensions, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import { getEventsByDate, getEvents, createEvent, updateEvent, deleteEvent, type Event } from '@/api/events';
 import { getEventColor, getColorForEvent, EVENT_COLORS, THEME } from '@/utils/colors';

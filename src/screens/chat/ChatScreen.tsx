@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { chatWithAI, type ChatMessage, type ParsedEvent } from '@/api/ai';
 import { createEvent, getCalendar } from '@/api/events';
 import CalendarPreviewModal from '@/components/CalendarPreviewModal';
