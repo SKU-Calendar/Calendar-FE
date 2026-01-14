@@ -77,8 +77,7 @@ export const apiRequest = async <T = any>(
 
     // API 호출
     const response = await fetch(url, requestOptions);
-    const responseData = await response.json();
-
+    
     // 401 Unauthorized - 토큰 만료 또는 인증 실패
     if (response.status === 401) {
       await clearAuth();
@@ -86,11 +85,41 @@ export const apiRequest = async <T = any>(
       throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
     }
 
+    // 응답 본문 확인
+    const contentType = response.headers.get('content-type');
+    const isJson = contentType && contentType.includes('application/json');
+    
+    let responseData: any = {};
+    
+    // 응답 본문이 있는 경우에만 파싱 시도
+    const text = await response.text();
+    
+    if (text && text.trim()) {
+      if (isJson) {
+        try {
+          responseData = JSON.parse(text);
+        } catch (parseError) {
+          console.error('JSON 파싱 실패:', parseError, '응답 본문:', text);
+          return {
+            success: false,
+            error: '서버 응답 형식이 올바르지 않습니다.',
+          };
+        }
+      } else {
+        // JSON이 아닌 경우 (예: HTML 에러 페이지)
+        console.error('JSON이 아닌 응답:', text.substring(0, 200));
+        return {
+          success: false,
+          error: `서버 오류 (${response.status}): ${text.substring(0, 100)}`,
+        };
+      }
+    }
+
     // 에러 응답 처리
     if (!response.ok) {
       return {
         success: false,
-        error: responseData.message || responseData.error || '요청에 실패했습니다.',
+        error: responseData.message || responseData.error || `요청에 실패했습니다. (${response.status})`,
         data: responseData,
       };
     }
