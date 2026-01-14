@@ -53,15 +53,39 @@ export const apiRequest = async <T = any>(
     // 헤더 설정
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...headers,
     };
 
-    // 인증이 필요한 경우 토큰 추가
+    // 인증이 필요한 경우에만 토큰 추가
+    // requiresAuth가 false인 경우 (로그인, 회원가입 등)는 토큰을 전송하지 않음
     if (requiresAuth) {
       const token = await getToken();
       if (token) {
         requestHeaders['Authorization'] = `Bearer ${token}`;
       }
+    }
+
+    // 디버깅: 회원가입/로그인 요청 로그
+    if (endpoint.includes('/auth/signup') || endpoint.includes('/auth/login')) {
+      console.log('API 요청:', {
+        url,
+        method,
+        requiresAuth,
+        hasAuthHeader: !!requestHeaders['Authorization'],
+        headers: Object.keys(requestHeaders),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    }
+    
+    // 디버깅: 인증이 필요한 요청 로그
+    if (requiresAuth) {
+      console.log('인증 필요한 API 요청:', {
+        url,
+        method,
+        hasAuthHeader: !!requestHeaders['Authorization'],
+        authHeaderPrefix: requestHeaders['Authorization']?.substring(0, 20) + '...',
+      });
     }
 
     // 요청 옵션
@@ -84,15 +108,54 @@ export const apiRequest = async <T = any>(
       // 로그인 화면으로 리다이렉트하는 로직은 네비게이션에서 처리
       throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
     }
-
-    // 응답 본문 확인
+    
+    // 응답 본문 확인 (response.text()는 한 번만 호출 가능)
     const contentType = response.headers.get('content-type');
     const isJson = contentType && contentType.includes('application/json');
     
+    // 응답 본문 읽기
+    const text = await response.text();
     let responseData: any = {};
     
-    // 응답 본문이 있는 경우에만 파싱 시도
-    const text = await response.text();
+    // 403 Forbidden - 로그인/회원가입 요청인 경우 특별 처리
+    if (response.status === 403 && (endpoint.includes('/auth/login') || endpoint.includes('/auth/signup'))) {
+      if (text && text.trim()) {
+        try {
+          responseData = JSON.parse(text);
+        } catch (e) {
+          // JSON 파싱 실패 시 텍스트 그대로 사용
+        }
+      }
+      
+      console.error('로그인/회원가입 403 에러:', {
+        url,
+        status: response.status,
+        responseText: text,
+        responseData,
+        requestHeaders: Object.keys(requestHeaders),
+      });
+      
+      // 백엔드에서 반환한 에러 메시지가 있으면 사용
+      const errorMessage = responseData.message || responseData.error || 
+        (text && text.trim() ? text : '서버에서 요청을 거부했습니다. 백엔드 설정을 확인해주세요.');
+      
+      return {
+        success: false,
+        error: errorMessage,
+        data: responseData,
+      };
+    }
+    
+    // 403 Forbidden - 인증이 필요한 요청인 경우 (프로필 등)
+    if (response.status === 403 && requiresAuth) {
+      console.error('인증 필요한 API 403 에러:', {
+        url,
+        status: response.status,
+        hasAuthHeader: !!requestHeaders['Authorization'],
+        authHeaderPrefix: requestHeaders['Authorization']?.substring(0, 30) + '...',
+        responseText: text,
+      });
+    }
     
     if (text && text.trim()) {
       if (isJson) {
@@ -113,10 +176,50 @@ export const apiRequest = async <T = any>(
           error: `서버 오류 (${response.status}): ${text.substring(0, 100)}`,
         };
       }
+    } else {
+      // 응답 본문이 비어있는 경우
+      console.warn('응답 본문이 비어있습니다:', {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
     }
 
     // 에러 응답 처리
     if (!response.ok) {
+      // 403 Forbidden 에러 처리
+      if (response.status === 403) {
+        const errorDetails = {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          responseData,
+          responseText: text.substring(0, 500),
+          requestHeaders: Object.fromEntries(Object.entries(requestHeaders).filter(([key]) => key !== 'Authorization')),
+          responseHeaders: Object.fromEntries(response.headers.entries()),
+        };
+        console.error('403 Forbidden 에러 상세:', errorDetails);
+        
+        // 백엔드에서 반환한 에러 메시지가 있으면 사용, 없으면 기본 메시지
+        let errorMessage = '접근 권한이 없습니다.';
+        
+        if (text && text.trim()) {
+          errorMessage = text.substring(0, 200);
+        } else if (responseData && (responseData.message || responseData.error)) {
+          errorMessage = responseData.message || responseData.error;
+        } else {
+          // CORS 또는 백엔드 설정 문제일 가능성
+          errorMessage = '서버에서 요청을 거부했습니다. 백엔드 CORS 설정 또는 인증 설정을 확인해주세요.';
+        }
+        
+        return {
+          success: false,
+          error: errorMessage,
+          data: responseData,
+        };
+      }
+      
       return {
         success: false,
         error: responseData.message || responseData.error || `요청에 실패했습니다. (${response.status})`,

@@ -10,8 +10,13 @@ const USER_KEY = '@calendar_app:user';
 /**
  * 액세스 토큰 저장
  */
-export const saveToken = async (token: string): Promise<void> => {
+export const saveToken = async (token: string | null | undefined): Promise<void> => {
   try {
+    if (!token) {
+      // null이나 undefined면 삭제
+      await AsyncStorage.removeItem(TOKEN_KEY);
+      return;
+    }
     await AsyncStorage.setItem(TOKEN_KEY, token);
   } catch (error) {
     console.error('토큰 저장 실패:', error);
@@ -34,8 +39,13 @@ export const getToken = async (): Promise<string | null> => {
 /**
  * 리프레시 토큰 저장
  */
-export const saveRefreshToken = async (token: string): Promise<void> => {
+export const saveRefreshToken = async (token: string | null | undefined): Promise<void> => {
   try {
+    if (!token) {
+      // null이나 undefined면 삭제
+      await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+      return;
+    }
     await AsyncStorage.setItem(REFRESH_TOKEN_KEY, token);
   } catch (error) {
     console.error('리프레시 토큰 저장 실패:', error);
@@ -60,6 +70,11 @@ export const getRefreshToken = async (): Promise<string | null> => {
  */
 export const saveUser = async (user: any): Promise<void> => {
   try {
+    if (!user) {
+      // null이나 undefined면 삭제
+      await AsyncStorage.removeItem(USER_KEY);
+      return;
+    }
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
   } catch (error) {
     console.error('사용자 정보 저장 실패:', error);

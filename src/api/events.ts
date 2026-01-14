@@ -80,6 +80,7 @@ export type CreateEventRequest = {
   endAt: string; // ISO 8601 형식 종료 일시 (필수)
   color?: string; // 색상 코드
   slots: Slot[]; // 슬롯 배열 (필수)
+  user_id?: string; // 사용자 ID (필수)
   // 호환성을 위한 필드들
   calendar_id?: string;
   title?: string;
@@ -95,6 +96,7 @@ export type UpdateEventRequest = {
   endAt?: string;
   color?: string;
   slots?: Slot[];
+  user_id?: string; // 사용자 ID
   // 호환성 필드
   calendar_id?: string;
   title?: string;
@@ -228,10 +230,11 @@ export const getEvents = async (
 
   // 실제 API 호출 - GET /api/calendar/{userId}/{calendarId}
   const user = await getUser();
+  
   if (!user || !user.id) {
     return {
       success: false,
-      error: '사용자 정보를 찾을 수 없습니다.',
+      error: '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.',
     };
   }
 
@@ -279,10 +282,11 @@ export const createEvent = async (
 
   // 실제 API 호출
   const user = await getUser();
+  
   if (!user || !user.id) {
     return {
       success: false,
-      error: '사용자 정보를 찾을 수 없습니다.',
+      error: '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.',
     };
   }
 
@@ -293,7 +297,13 @@ export const createEvent = async (
     .replace(':user_id', user.id)
     .replace(':calendar_id', calendarId);
 
-  return await api.post<Event>(endpoint, eventData);
+  // 요청 본문에 user_id만 포함 (사용자 정보 전체가 아닌)
+  const requestBody = {
+    ...eventData,
+    user_id: user.id,
+  };
+
+  return await api.post<Event>(endpoint, requestBody);
 };
 
 /**
@@ -316,10 +326,11 @@ export const updateEvent = async (
 
   // 실제 API 호출
   const user = await getUser();
+  
   if (!user || !user.id) {
     return {
       success: false,
-      error: '사용자 정보를 찾을 수 없습니다.',
+      error: '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.',
     };
   }
 
@@ -328,7 +339,13 @@ export const updateEvent = async (
     .replace(':user_id', user.id)
     .replace(':calendar_id', id);
 
-  const response = await api.patch<Event & { eventId?: string }>(endpoint, eventData);
+  // 요청 본문에 user_id만 포함 (사용자 정보 전체가 아닌)
+  const requestBody = {
+    ...eventData,
+    user_id: user.id,
+  };
+
+  const response = await api.patch<Event & { eventId?: string }>(endpoint, requestBody);
   
   // API 응답의 eventId를 id로 매핑 (호환성 유지)
   if (response.success && response.data) {
@@ -357,10 +374,11 @@ export const deleteEvent = async (id: string): Promise<{
 
   // 실제 API 호출
   const user = await getUser();
+  
   if (!user || !user.id) {
     return {
       success: false,
-      error: '사용자 정보를 찾을 수 없습니다.',
+      error: '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.',
     };
   }
 

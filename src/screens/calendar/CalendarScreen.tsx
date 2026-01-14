@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, ActivityIndicator, PanResponder, Animated, Dimensions, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
-import { getEventsByDate, getEvents, createEvent, updateEvent, deleteEvent, type Event } from '@/api/events';
+import { getEventsByDate, getEvents, createEvent, updateEvent, deleteEvent, getCalendar, createCalendar, type Event } from '@/api/events';
 import { getEventColor, getColorForEvent, EVENT_COLORS, THEME } from '@/utils/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -163,9 +163,45 @@ const CalendarScreen: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [datePickerType, setDatePickerType] = useState<'start' | 'end'>('start');
+  const [calendarId, setCalendarId] = useState<string>('default'); // 기본 캘린더 ID
 
   const translateX = useRef(new Animated.Value(0)).current;
   const [isAnimating, setIsAnimating] = useState(false);
+
+  // 컴포넌트 마운트 시 캘린더 목록 조회
+  useEffect(() => {
+    const loadCalendar = async () => {
+      try {
+        const response = await getCalendar();
+        if (response.success && response.data && response.data.length > 0) {
+          const loadedCalendarId = response.data[0].id;
+          setCalendarId(loadedCalendarId);
+          console.log('캘린더 로드 완료:', loadedCalendarId);
+        } else {
+          // 캘린더가 없으면 생성
+          console.log('캘린더가 없습니다. 생성 중...');
+          const createResponse = await createCalendar(Intl.DateTimeFormat().resolvedOptions().timeZone);
+          if (createResponse.success && createResponse.data) {
+            const createdCalendarId = createResponse.data.id;
+            setCalendarId(createdCalendarId);
+            console.log('캘린더 생성 완료:', createdCalendarId);
+          } else {
+            console.error('캘린더 생성 실패:', createResponse.error);
+          }
+        }
+      } catch (error) {
+        console.error('캘린더 조회/생성 실패:', error);
+      }
+    };
+    loadCalendar();
+  }, []);
+  
+  // calendarId가 변경되면 일정 다시 로드
+  useEffect(() => {
+    if (calendarId !== 'default') {
+      loadMonthEvents();
+    }
+  }, [calendarId, viewDate]);
 
   // --- 스와이프 제스처 처리 수정 ---
   const panResponder = useRef(
@@ -231,18 +267,26 @@ const CalendarScreen: React.FC = () => {
     })
   ).current;
 
-  // 월의 모든 일정을 로드 (viewDate 변경 시)
+  // 월의 모든 일정을 로드 (viewDate 변경 시) - calendarId가 로드된 후에만 실행
   useEffect(() => {
-    loadMonthEvents();
+    if (calendarId !== 'default') {
+      loadMonthEvents();
+    }
   }, [viewDate]);
 
   const loadMonthEvents = async () => {
+    // calendarId가 'default'이면 아직 캘린더가 로드되지 않았으므로 대기
+    if (calendarId === 'default') {
+      console.log('캘린더 ID가 아직 로드되지 않았습니다. 대기 중...');
+      return;
+    }
+    
     setLoading(true);
     try {
       const startDate = viewDate.startOf('month').format('YYYY-MM-DD');
       const endDate = viewDate.endOf('month').format('YYYY-MM-DD');
       // GET /api/calendar/{userId}/{calendarId} 사용
-      const response = await getEvents(undefined, startDate, endDate);
+      const response = await getEvents(calendarId, startDate, endDate);
       if (response.success && response.data) {
         setEvents(response.data);
       }
@@ -376,6 +420,7 @@ const CalendarScreen: React.FC = () => {
             color: color,
             slots: slots,
             // 호환성 필드
+            calendar_id: calendarId, // 캘린더 ID 전달
             title: newEventTitle.trim(),
             date: startDate,
             description: newEventDescription.trim() || undefined,
@@ -392,7 +437,20 @@ const CalendarScreen: React.FC = () => {
         setSelectedColor(null);
         setEditingEvent(null);
         handleCloseEventForm();
+      } else {
+        // 에러 발생 시 사용자에게 알림
+        Alert.alert(
+          '일정 생성 실패',
+          response.error || '일정을 생성하는데 실패했습니다.',
+          [{ text: '확인' }]
+        );
       }
+    } catch (error: any) {
+      console.error('일정 생성 오류:', error);
+      Alert.alert(
+        '오류',
+        error.message || '일정을 생성하는데 오류가 발생했습니다.'
+      );
     } finally {
       setAdding(false);
     }

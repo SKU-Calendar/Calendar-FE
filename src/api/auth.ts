@@ -57,14 +57,77 @@ export const login = async (credentials: LoginRequest): Promise<{
     false // 로그인은 인증 불필요
   );
 
+  // 로그인 실패 시 상세 로그 출력
+  if (!response.success) {
+    console.error('로그인 API 응답 실패:', {
+      success: response.success,
+      error: response.error,
+      data: response.data,
+    });
+  }
+
+  // 로그인 응답 전체 로그 (디버깅)
+  console.log('로그인 API 응답:', {
+    success: response.success,
+    hasData: !!response.data,
+    dataKeys: response.data ? Object.keys(response.data) : [],
+    fullData: response.data,
+  });
+
   if (response.success && response.data) {
     // 토큰 저장
     await saveToken(response.data.accessToken);
     if (response.data.refreshToken) {
       await saveRefreshToken(response.data.refreshToken);
     }
-    // 사용자 정보 저장
-    await saveUser(response.data.user);
+    
+    // 사용자 정보 저장 - 응답 구조 확인
+    let userToSave = null;
+    
+    if (response.data.user) {
+      // 응답에 user 객체가 있는 경우
+      userToSave = response.data.user;
+    } else {
+      // 응답에 user가 없을 경우, JWT 토큰에서 사용자 정보 추출
+      try {
+        const token = response.data.accessToken;
+        // JWT 토큰은 base64로 인코딩된 3부분으로 구성: header.payload.signature
+        const payload = token.split('.')[1];
+        if (payload) {
+          // base64 디코딩 (패딩 추가)
+          const decodedPayload = JSON.parse(
+            atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+          );
+          
+          // JWT payload에서 사용자 정보 추출
+          userToSave = {
+            id: decodedPayload.sub || decodedPayload.userId || decodedPayload.id,
+            email: decodedPayload.email,
+            name: decodedPayload.name,
+          };
+          
+          console.log('JWT 토큰에서 사용자 정보 추출:', userToSave);
+        }
+      } catch (error) {
+        console.error('JWT 토큰 파싱 실패:', error);
+      }
+    }
+    
+    if (userToSave && userToSave.id) {
+      await saveUser(userToSave);
+      console.log('사용자 정보 저장 완료:', userToSave);
+    } else {
+      console.error('사용자 정보를 추출할 수 없습니다:', response.data);
+    }
+    
+    // 디버깅: 저장 확인
+    const savedUser = await getUser();
+    console.log('로그인 성공 - 저장된 정보:', {
+      hasToken: !!response.data.accessToken,
+      hasUser: !!savedUser,
+      userId: savedUser?.id,
+      savedUser: savedUser,
+    });
   }
 
   return response;
@@ -99,6 +162,15 @@ export const signup = async (data: SignupRequest): Promise<{
     data,
     false // 회원가입은 인증 불필요
   );
+
+  // 403 에러인 경우 상세 로그 출력
+  if (!response.success && response.error) {
+    console.error('회원가입 API 응답:', {
+      success: response.success,
+      error: response.error,
+      data: response.data,
+    });
+  }
 
   if (response.success && response.data) {
     // 회원가입 후 자동 로그인 처리
@@ -171,11 +243,29 @@ export const getProfile = async (): Promise<{
   }
 
   // 실제 API 호출
+  // 프로필 조회는 인증이 필요하므로 requiresAuth = true (기본값)
   const response = await api.get<{
     id: string;
     email: string;
     name?: string;
-  }>(API_ENDPOINTS.AUTH.PROFILE);
+  }>(API_ENDPOINTS.AUTH.PROFILE, true);
+
+  // 프로필 조회 실패 시 상세 로그
+  if (!response.success) {
+    console.error('프로필 조회 실패:', {
+      success: response.success,
+      error: response.error,
+      data: response.data,
+    });
+    
+    // 토큰 확인
+    const { getToken } = await import('@/utils/storage');
+    const token = await getToken();
+    console.log('프로필 조회 시 토큰 상태:', {
+      hasToken: !!token,
+      tokenLength: token?.length,
+    });
+  }
 
   if (response.success && response.data) {
     await saveUser(response.data);
