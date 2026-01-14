@@ -14,6 +14,7 @@ export type LoginRequest = {
 export type SignupRequest = {
   email: string;
   password: string;
+  name: string; // 사용자 이름 (필수)
 };
 
 export type AuthResponse = {
@@ -27,7 +28,9 @@ export type AuthResponse = {
 };
 
 /**
- * 로그인
+ * 로그인 (POST /api/auth/login)
+ * 이메일/비밀번호를 검증하여 JWT 액세스 토큰을 발급합니다
+ * 요청 본문: { email, password }
  */
 export const login = async (credentials: LoginRequest): Promise<{
   success: boolean;
@@ -68,7 +71,9 @@ export const login = async (credentials: LoginRequest): Promise<{
 };
 
 /**
- * 회원가입
+ * 회원가입 (POST /api/auth/signup)
+ * 새로운 사용자를 생성합니다. 이메일 중복을 검사하고, 비밀번호는 BCrypt로 암호화합니다
+ * 요청 본문: { email, password, name }
  */
 export const signup = async (data: SignupRequest): Promise<{
   success: boolean;
@@ -108,7 +113,9 @@ export const signup = async (data: SignupRequest): Promise<{
 };
 
 /**
- * 로그아웃
+ * 로그아웃 (POST /api/auth/logout)
+ * 서버 상태를 저장하지 않고 단순 200 OK를 반환하여 클라이언트 측 토큰을 폐기하도록 합니다
+ * 응답: { accessToken, tokenType, message }
  */
 export const logout = async (): Promise<{
   success: boolean;
@@ -117,35 +124,61 @@ export const logout = async (): Promise<{
   // 모킹 모드일 때는 서버 호출 생략
   if (!USE_MOCK_API) {
     try {
-      // 서버에 로그아웃 요청 (선택사항)
-      await api.post(API_ENDPOINTS.AUTH.LOGOUT);
+      // 서버에 로그아웃 요청 (서버는 상태를 저장하지 않고 200 OK만 반환)
+      const response = await api.post<{
+        accessToken: string;
+        tokenType: string;
+        message: string;
+      }>(API_ENDPOINTS.AUTH.LOGOUT, undefined, true);
+      // 응답은 무시하고 로컬 토큰만 삭제
     } catch (error) {
       console.error('로그아웃 API 호출 실패:', error);
+      // API 호출 실패해도 로컬 토큰은 삭제
     }
   }
 
-  // 로컬 저장소에서 인증 정보 삭제
+  // 로컬 저장소에서 인증 정보 삭제 (클라이언트 측 토큰 폐기)
   await clearAuth();
 
   return { success: true };
 };
 
 /**
- * 토큰 새로고침 (리프레시 토큰 사용)
+ * 프로필 조회 (GET /api/auth/profile)
  */
-export const refreshToken = async (): Promise<{
+export const getProfile = async (): Promise<{
   success: boolean;
-  data?: { accessToken: string };
+  data?: {
+    id: string;
+    email: string;
+    name?: string;
+  };
   error?: string;
 }> => {
-  const response = await api.post<{ accessToken: string }>(
-    API_ENDPOINTS.AUTH.REFRESH,
-    {},
-    false
-  );
+  // 모킹 모드일 때
+  if (USE_MOCK_API) {
+    const user = await import('@/utils/storage').then(m => m.getUser());
+    if (user) {
+      return {
+        success: true,
+        data: user,
+      };
+    }
+    return {
+      success: false,
+      error: '사용자 정보를 찾을 수 없습니다.',
+    };
+  }
+
+  // 실제 API 호출
+  const response = await api.get<{
+    id: string;
+    email: string;
+    name?: string;
+  }>(API_ENDPOINTS.AUTH.PROFILE);
 
   if (response.success && response.data) {
-    await saveToken(response.data.accessToken);
+    await saveUser(response.data);
   }
 
   return response;

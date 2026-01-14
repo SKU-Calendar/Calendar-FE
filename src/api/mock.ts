@@ -83,7 +83,7 @@ export const mockLogin = async (email: string, password: string) => {
 /**
  * 모킹된 회원가입
  */
-export const mockSignup = async (email: string, password: string) => {
+export const mockSignup = async (email: string, password: string, name?: string) => {
   await new Promise((resolve) => setTimeout(resolve, 500));
 
   if (mockUsers[email as keyof typeof mockUsers]) {
@@ -97,7 +97,7 @@ export const mockSignup = async (email: string, password: string) => {
     id: `user-${Date.now()}`,
     email,
     password,
-    name: email.split('@')[0],
+    name: name || email.split('@')[0], // name이 제공되면 사용, 없으면 이메일에서 추출
   };
 
   mockUsers[email as keyof typeof mockUsers] = newUser;

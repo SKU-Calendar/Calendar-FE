@@ -13,9 +13,10 @@ import {
   Platform,
 } from 'react-native';
 import { chatWithAI, type ChatMessage, type ParsedEvent } from '@/api/ai';
-import { createEvent } from '@/api/events';
+import { createEvent, getCalendar } from '@/api/events';
 import CalendarPreviewModal from '@/components/CalendarPreviewModal';
 import { getColorForEvent, THEME } from '@/utils/colors';
+import dayjs from 'dayjs';
 
 const ChatScreen: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -28,7 +29,24 @@ const ChatScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewEvents, setPreviewEvents] = useState<ParsedEvent[]>([]);
+  const [calendarId, setCalendarId] = useState<string>('default'); // 기본 캘린더 ID
   const flatListRef = useRef<FlatList>(null);
+
+  // 컴포넌트 마운트 시 캘린더 목록 조회하여 첫 번째 캘린더 ID 사용
+  useEffect(() => {
+    const loadCalendar = async () => {
+      try {
+        const response = await getCalendar();
+        if (response.success && response.data && response.data.length > 0) {
+          setCalendarId(response.data[0].id);
+        }
+      } catch (error) {
+        console.error('캘린더 조회 실패:', error);
+        // 실패해도 기본값 사용
+      }
+    };
+    loadCalendar();
+  }, []);
 
   // 메시지가 추가될 때 스크롤을 맨 아래로
   useEffect(() => {
@@ -60,6 +78,7 @@ const ChatScreen: React.FC = () => {
       // 백엔드 API를 통해 AI 응답 받기
       const response = await chatWithAI({
         message: userMessage,
+        calendarId: calendarId, // API 스펙에 맞게 calendarId 전달
         conversationHistory: conversationHistory,
       });
 
@@ -103,11 +122,34 @@ const ChatScreen: React.FC = () => {
       for (const event of events) {
         try {
           const color = getColorForEvent(event.title);
+          
+          // API 스펙에 맞게 ISO 8601 형식으로 변환
+          const startAt = dayjs(event.date).startOf('day').toISOString();
+          const endAt = dayjs(event.date).endOf('day').toISOString();
+          
+          // slots 배열 생성 (API 스펙에 필수)
+          const slots = [{
+            id: `slot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            slotStartAt: startAt,
+            slotEndAt: endAt,
+            slotIndex: 0,
+            slotTitle: event.title,
+            isDone: false,
+            done: false,
+          }];
+
           const response = await createEvent({
+            status: 'active', // 기본 상태
+            startAt: startAt,
+            endAt: endAt,
+            color: color,
+            slots: slots,
+            // 호환성 필드
             title: event.title,
             date: event.date,
             description: event.description,
-            color: color,
+            start_at: startAt,
+            end_at: endAt,
           });
 
           if (response.success) {

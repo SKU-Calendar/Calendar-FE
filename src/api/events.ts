@@ -11,76 +11,209 @@ import {
   mockDeleteEvent,
 } from './mock';
 
+export type Calendar = {
+  id: string; // UUID
+  timezone: string;
+  chatSessionId: string; // UUID
+  createdAt: string; // ISO 8601 형식
+  updatedAt: string; // ISO 8601 형식
+};
+
+export type CalendarDetail = {
+  id: string; // UUID
+  timezone: string;
+  createdAt: string; // ISO 8601 형식
+  updatedAt: string; // ISO 8601 형식
+  events: Array<{
+    id: string; // UUID
+    status?: string;
+    startAt: string; // ISO 8601 형식
+    endAt: string; // ISO 8601 형식
+    color?: string;
+    createdAt: string; // ISO 8601 형식
+    updatedAt: string; // ISO 8601 형식
+    slots: Array<{
+      id: string; // UUID
+      slotStartAt: string; // ISO 8601 형식
+      slotEndAt: string; // ISO 8601 형식
+      slotIndex: number;
+      slotTitle: string;
+      isDone: boolean;
+      done: boolean;
+    }>;
+  }>;
+};
+
+export type Slot = {
+  id: string;
+  slotStartAt: string; // ISO 8601 형식
+  slotEndAt: string; // ISO 8601 형식
+  slotIndex: number;
+  slotTitle: string;
+  isDone: boolean;
+  done: boolean;
+};
+
 export type Event = {
   id: string;
-  calendar_id?: string; // 캘린더 ID (ERD 참고)
-  created_by?: string; // 생성한 사용자 ID
-  title: string;
-  date: string; // ISO string (yyyy-mm-dd) - 호환성을 위해 유지
-  start_at?: string; // TIMESTAMP 형식 시작 일시 (ERD 참고)
-  end_at?: string; // TIMESTAMP 형식 종료 일시 (ERD 참고)
-  description?: string;
-  status?: string; // 일정 상태 (ERD 참고)
+  status?: string; // 일정 상태
+  startAt: string; // ISO 8601 형식 (YYYY-MM-DDTHH:mm:ss.sssZ)
+  endAt: string; // ISO 8601 형식 (YYYY-MM-DDTHH:mm:ss.sssZ)
   color?: string; // 색상 코드 (예: '#4caf50', '#9c27b0' 등)
-  createdAt?: string;
-  updatedAt?: string;
-  deleted_at?: string; // 삭제일자 (soft delete)
+  createdAt: string; // ISO 8601 형식
+  updatedAt: string; // ISO 8601 형식
+  slots: Slot[]; // 슬롯 배열
+  // 호환성을 위한 필드들 (기존 코드와의 호환)
+  calendar_id?: string;
+  created_by?: string;
+  title?: string; // slots[0]?.slotTitle 또는 별도 필드
+  date?: string; // startAt에서 추출 가능
+  start_at?: string; // startAt과 동일
+  end_at?: string; // endAt과 동일
+  description?: string;
+  deleted_at?: string;
 };
 
 export type CreateEventRequest = {
-  calendar_id?: string; // 캘린더 ID (선택)
-  title: string;
-  date: string; // ISO string (yyyy-mm-dd)
-  start_at?: string; // TIMESTAMP 형식 시작 일시
-  end_at?: string; // TIMESTAMP 형식 종료 일시
-  description?: string;
   status?: string; // 일정 상태
+  startAt: string; // ISO 8601 형식 시작 일시 (필수)
+  endAt: string; // ISO 8601 형식 종료 일시 (필수)
   color?: string; // 색상 코드
+  slots: Slot[]; // 슬롯 배열 (필수)
+  // 호환성을 위한 필드들
+  calendar_id?: string;
+  title?: string;
+  date?: string;
+  start_at?: string;
+  end_at?: string;
+  description?: string;
 };
 
-export type UpdateEventRequest = Partial<CreateEventRequest>;
+export type UpdateEventRequest = {
+  status?: string;
+  startAt?: string;
+  endAt?: string;
+  color?: string;
+  slots?: Slot[];
+  // 호환성 필드
+  calendar_id?: string;
+  title?: string;
+  date?: string;
+  start_at?: string;
+  end_at?: string;
+  description?: string;
+};
 
 /**
- * 캘린더 조회 (GET /api/calender)
+ * 내 캘린더 목록 조회 (GET /api/calendar)
+ * 로그인한 사용자가 소유한 모든 캘린더 목록을 반환합니다
+ * 응답: Calendar[]
  */
 export const getCalendar = async (): Promise<{
   success: boolean;
-  data?: any;
+  data?: Calendar[];
   error?: string;
 }> => {
   // 모킹 모드일 때
   if (USE_MOCK_API) {
-    return await mockGetEvents(undefined, undefined);
+    // 모킹 구현은 필요시 추가
+    return {
+      success: false,
+      error: '모킹 모드: 캘린더 목록 조회 기능은 아직 구현되지 않았습니다.',
+    };
   }
 
   // 실제 API 호출
-  return await api.get<any>(API_ENDPOINTS.CALENDAR.LIST);
+  return await api.get<Calendar[]>(API_ENDPOINTS.CALENDAR.LIST);
 };
 
 /**
- * 캘린더 상세 조회 (GET /api/calender/{date_id})
+ * 캘린더 생성 (POST /api/calendar)
+ * 로그인한 사용자를 owner로 하여 새로운 캘린더를 생성합니다
+ * 요청 본문: { timezone: string }
  */
-export const getCalendarDetail = async (dateId: string): Promise<{
+export const createCalendar = async (timezone: string): Promise<{
   success: boolean;
-  data?: any;
+  data?: Calendar;
   error?: string;
 }> => {
   // 모킹 모드일 때
   if (USE_MOCK_API) {
-    return await mockGetEvents(dateId, dateId);
+    // 모킹 구현은 필요시 추가
+    return {
+      success: false,
+      error: '모킹 모드: 캘린더 생성 기능은 아직 구현되지 않았습니다.',
+    };
   }
 
   // 실제 API 호출
-  const endpoint = API_ENDPOINTS.CALENDAR.DETAIL.replace(':date_id', dateId);
-  return await api.get<any>(endpoint);
+  return await api.post<Calendar>(API_ENDPOINTS.CALENDAR.LIST, { timezone });
 };
 
 /**
- * 일정 목록 조회 (기존 호환성을 위한 함수)
- * @param startDate 시작 날짜 (선택, YYYY-MM-DD)
- * @param endDate 종료 날짜 (선택, YYYY-MM-DD)
+ * 캘린더 상세 조회 (GET /api/calendar/{calendarId})
+ * 지정한 캘린더의 기본 정보와 포함된 이벤트/슬롯 정보를 조회합니다
+ * @param calendarId 캘린더 ID (UUID, 필수)
+ * 응답: { id, timezone, createdAt, updatedAt, events[] }
+ */
+export const getCalendarById = async (calendarId: string): Promise<{
+  success: boolean;
+  data?: CalendarDetail;
+  error?: string;
+}> => {
+  // 모킹 모드일 때
+  if (USE_MOCK_API) {
+    // 모킹 구현은 필요시 추가
+    return {
+      success: false,
+      error: '모킹 모드: 캘린더 상세 조회 기능은 아직 구현되지 않았습니다.',
+    };
+  }
+
+  // 실제 API 호출
+  const endpoint = API_ENDPOINTS.CALENDAR.BY_ID.replace(':calendar_id', calendarId);
+  return await api.get<CalendarDetail>(endpoint);
+};
+
+/**
+ * 특정 날짜 슬롯 조회 (GET /api/calendar/{calendarId}/day/{date})
+ * 캘린더 ID와 날짜를 기준으로 해당 날짜의 슬롯(event_slots) 목록을 조회합니다
+ * @param calendarId 캘린더 ID (UUID, 필수)
+ * @param date 날짜 (YYYY-MM-DD 형식, 필수)
+ * 응답: EventSlot[] (각 슬롯은 id, eventId, slotStartAt, slotEndAt, slotIndex, slotTitle, isDone 포함)
+ */
+export const getCalendarByDate = async (
+  calendarId: string,
+  date: string
+): Promise<{
+  success: boolean;
+  data?: import('./eventSlots').EventSlot[];
+  error?: string;
+}> => {
+  // 모킹 모드일 때
+  if (USE_MOCK_API) {
+    // 모킹 구현은 필요시 추가
+    return {
+      success: false,
+      error: '모킹 모드: 특정 날짜 슬롯 조회 기능은 아직 구현되지 않았습니다.',
+    };
+  }
+
+  // 실제 API 호출
+  const endpoint = API_ENDPOINTS.CALENDAR.BY_DATE
+    .replace(':calendar_id', calendarId)
+    .replace(':date', date);
+  return await api.get<import('./eventSlots').EventSlot[]>(endpoint);
+};
+
+/**
+ * 일정 목록 조회 (GET /api/calendar/{userId}/{calendarId})
+ * @param calendarId 캘린더 ID (필수)
+ * @param startDate 시작 날짜 (선택, YYYY-MM-DD) - 모킹 모드용
+ * @param endDate 종료 날짜 (선택, YYYY-MM-DD) - 모킹 모드용
  */
 export const getEvents = async (
+  calendarId?: string,
   startDate?: string,
   endDate?: string
 ): Promise<{
@@ -93,8 +226,21 @@ export const getEvents = async (
     return await mockGetEvents(startDate, endDate);
   }
 
-  // 실제 API 호출 - 캘린더 조회 사용
-  return await api.get<Event[]>(API_ENDPOINTS.CALENDAR.LIST);
+  // 실제 API 호출 - GET /api/calendar/{userId}/{calendarId}
+  const user = await getUser();
+  if (!user || !user.id) {
+    return {
+      success: false,
+      error: '사용자 정보를 찾을 수 없습니다.',
+    };
+  }
+
+  const id = calendarId || 'default'; // 기본 캘린더 ID
+  const endpoint = API_ENDPOINTS.CALENDAR.EVENT_GET
+    .replace(':user_id', user.id)
+    .replace(':calendar_id', id);
+
+  return await api.get<Event[]>(endpoint);
 };
 
 /**
@@ -111,14 +257,13 @@ export const getEventsByDate = async (date: string): Promise<{
     return await mockGetEvents(date, date);
   }
 
-  // 실제 API 호출 - 캘린더 상세 조회 사용 (date_id는 YYYY-MM-DD 형식)
-  const dateId = date; // 또는 date.replace(/-/g, '') 형식일 수 있음
-  const endpoint = API_ENDPOINTS.CALENDAR.DETAIL.replace(':date_id', dateId);
+  // 실제 API 호출 - 캘린더 날짜별 조회 사용
+  const endpoint = API_ENDPOINTS.CALENDAR.BY_DATE.replace(':date', date);
   return await api.get<Event[]>(endpoint);
 };
 
 /**
- * 일정 생성 (POST /api/calender/{user_id}/{calender_id})
+ * 일정 생성 (POST /api/calendar/{user_id}/{calendar_id})
  */
 export const createEvent = async (
   eventData: CreateEventRequest
@@ -141,18 +286,20 @@ export const createEvent = async (
     };
   }
 
-  // calender_id는 이벤트 ID 또는 날짜 기반으로 생성 (실제 백엔드에 따라 다를 수 있음)
-  const calenderId = eventData.date.replace(/-/g, ''); // YYYYMMDD 형식
+  // calendar_id는 이벤트 ID 또는 날짜 기반으로 생성 (실제 백엔드에 따라 다를 수 있음)
+  const calendarId = eventData.calendar_id || eventData.date.replace(/-/g, ''); // YYYYMMDD 형식
 
   const endpoint = API_ENDPOINTS.CALENDAR.EVENT_CREATE
     .replace(':user_id', user.id)
-    .replace(':calender_id', calenderId);
+    .replace(':calendar_id', calendarId);
 
   return await api.post<Event>(endpoint, eventData);
 };
 
 /**
- * 일정 수정 (PATCH /api/calender/{user_id}/{calender_id})
+ * 일정 수정 (PATCH /api/calendar/{user_id}/{calendar_id})
+ * 응답: { eventId, status, startAt, endAt, color, slots[] }
+ * 캘린더 소유자 또는 일정 생성자만 수정 가능
  */
 export const updateEvent = async (
   id: string,
@@ -176,19 +323,31 @@ export const updateEvent = async (
     };
   }
 
-  // calender_id는 이벤트 ID 사용 (실제 백엔드에 따라 다를 수 있음)
+  // calendar_id는 이벤트 ID 사용
   const endpoint = API_ENDPOINTS.CALENDAR.EVENT_UPDATE
     .replace(':user_id', user.id)
-    .replace(':calender_id', id);
+    .replace(':calendar_id', id);
 
-  return await api.patch<Event>(endpoint, eventData);
+  const response = await api.patch<Event & { eventId?: string }>(endpoint, eventData);
+  
+  // API 응답의 eventId를 id로 매핑 (호환성 유지)
+  if (response.success && response.data) {
+    const eventData = response.data as any;
+    if (eventData.eventId && !eventData.id) {
+      eventData.id = eventData.eventId;
+    }
+  }
+
+  return response;
 };
 
 /**
- * 일정 삭제 (DELETE /api/calender/{user_id}/{calender_id})
+ * 일정 삭제 (DELETE /api/calendar/{user_id}/{calendar_id})
+ * 응답: { eventId: string }
  */
 export const deleteEvent = async (id: string): Promise<{
   success: boolean;
+  data?: { eventId: string };
   error?: string;
 }> => {
   // 모킹 모드일 때
@@ -205,10 +364,22 @@ export const deleteEvent = async (id: string): Promise<{
     };
   }
 
-  // calender_id는 이벤트 ID 사용 (실제 백엔드에 따라 다를 수 있음)
+  // calendar_id는 이벤트 ID 사용
   const endpoint = API_ENDPOINTS.CALENDAR.EVENT_DELETE
     .replace(':user_id', user.id)
-    .replace(':calender_id', id);
+    .replace(':calendar_id', id);
 
-  return await api.delete(endpoint);
+  const response = await api.delete<{ eventId: string }>(endpoint);
+  
+  if (response.success && response.data) {
+    return {
+      success: true,
+      data: response.data,
+    };
+  }
+
+  return {
+    success: false,
+    error: response.error || '일정 삭제에 실패했습니다.',
+  };
 };

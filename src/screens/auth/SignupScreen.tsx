@@ -9,6 +9,7 @@ import { THEME } from '@/utils/colors';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Signup'>;
 
 const SignupScreen: React.FC<Props> = ({ navigation }) => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -16,7 +17,7 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSignup = async () => {
     // 1. 입력 유효성 검사
-    if (!email || !password || !passwordConfirm) {
+    if (!name || !email || !password || !passwordConfirm) {
       Alert.alert('알림', '모든 정보를 입력해주세요.');
       return;
     }
@@ -36,7 +37,7 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
     setLoading(true);
     try {
       // 4. 백엔드 API 호출
-      const response = await signup({ email, password });
+      const response = await signup({ email, password, name });
 
       if (response.success) {
         Alert.alert(
@@ -57,6 +58,14 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>회원가입</Text>
+      
+      <TextInput
+        style={styles.input}
+        placeholder="이름"
+        value={name}
+        onChangeText={setName}
+        autoCapitalize="words"
+      />
       
       <TextInput
         style={styles.input}

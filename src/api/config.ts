@@ -36,14 +36,22 @@ export const API_ENDPOINTS = {
     LOGOUT: '/auth/logout',
     PROFILE: '/auth/profile',
   },
-  // 캘린더/일정 (API 문서에 따르면 /api/calender 사용)
+  // 캘린더/일정
   CALENDAR: {
-    LIST: '/calender',
-    DETAIL: '/calender/:date_id',
-    EVENT_CREATE: '/calender/:user_id/:calender_id', // POST
-    EVENT_GET: '/calender/:user_id/:calender_id', // GET
-    EVENT_UPDATE: '/calender/:user_id/:calender_id', // PATCH
-    EVENT_DELETE: '/calender/:user_id/:calender_id', // DELETE
+    LIST: '/calendar', // GET /api/calendar
+    BY_ID: '/calendar/:calendar_id', // GET /api/calendar/{calendar_id}
+    BY_DATE: '/calendar/:calendar_id/day/:date', // GET /api/calendar/{calendarId}/day/{date}
+    EVENT_CREATE: '/calendar/:user_id/:calendar_id', // POST /api/calendar/{user_id}/{calendar_id}
+    EVENT_GET: '/calendar/:user_id/:calendar_id', // GET /api/calendar/{user_id}/{calendar_id}
+    EVENT_UPDATE: '/calendar/:user_id/:calendar_id', // PATCH /api/calendar/{user_id}/{calendar_id}
+    EVENT_DELETE: '/calendar/:user_id/:calendar_id', // DELETE /api/calendar/{user_id}/{calendar_id}
+  },
+  // 이벤트 슬롯
+  EVENT_SLOTS: {
+    CREATE: '/event-slots', // POST /api/event-slots
+    DELETE: '/event-slots/:slot_id', // DELETE /api/event-slots/{slot_id}
+    UPDATE: '/event-slots/:slot_id', // PATCH /api/event-slots/{slot_id}
+    UPDATE_DONE: '/event-slots/:slot_id/done', // PATCH /api/event-slots/{slot_id}/done
   },
   // 채팅 (API 문서에 따르면 /api/chats/{chat_id} 사용)
   CHAT: {

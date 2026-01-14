@@ -240,7 +240,8 @@ const CalendarScreen: React.FC = () => {
     try {
       const startDate = viewDate.startOf('month').format('YYYY-MM-DD');
       const endDate = viewDate.endOf('month').format('YYYY-MM-DD');
-      const response = await getEvents(startDate, endDate);
+      // GET /api/calendar/{userId}/{calendarId} 사용
+      const response = await getEvents(undefined, startDate, endDate);
       if (response.success && response.data) {
         setEvents(response.data);
       }
@@ -280,12 +281,27 @@ const CalendarScreen: React.FC = () => {
 
   // 기간이 있는 일정인지 확인하고 날짜 범위 가져오기
   const getEventDateRange = (event: Event) => {
-    if (event.start_at && event.end_at) {
-      const start = dayjs(event.start_at);
-      const end = dayjs(event.end_at);
+    // API 스펙에 맞게 startAt, endAt 사용 (호환성을 위해 start_at, end_at도 확인)
+    const startAt = event.startAt || event.start_at;
+    const endAt = event.endAt || event.end_at;
+    
+    if (startAt && endAt) {
+      const start = dayjs(startAt);
+      const end = dayjs(endAt);
       return { start: start.format('YYYY-MM-DD'), end: end.format('YYYY-MM-DD'), hasRange: true };
     }
-    return { start: event.date, end: event.date, hasRange: false };
+    
+    // date 필드가 있으면 사용, 없으면 startAt에서 추출
+    if (event.date) {
+      return { start: event.date, end: event.date, hasRange: false };
+    }
+    
+    if (startAt) {
+      const start = dayjs(startAt);
+      return { start: start.format('YYYY-MM-DD'), end: start.format('YYYY-MM-DD'), hasRange: false };
+    }
+    
+    return { start: dayjs().format('YYYY-MM-DD'), end: dayjs().format('YYYY-MM-DD'), hasRange: false };
   };
 
   // 특정 날짜에 표시할 일정들 가져오기 (기간 일정 포함)
@@ -322,26 +338,48 @@ const CalendarScreen: React.FC = () => {
     setAdding(true);
     try {
       const color = selectedColor || getColorForEvent(newEventTitle.trim());
-      
-      const startAt = dayjs(startDate).startOf('day').format('YYYY-MM-DD HH:mm:ss');
-      const endAt = dayjs(endDate).endOf('day').format('YYYY-MM-DD HH:mm:ss');
+
+      // API 스펙에 맞게 ISO 8601 형식으로 변환
+      const startAt = dayjs(startDate).startOf('day').toISOString();
+      const endAt = dayjs(endDate).endOf('day').toISOString();
+
+      // slots 배열 생성 (API 스펙에 필수)
+      const slots = [{
+        id: `slot-${Date.now()}`,
+        slotStartAt: startAt,
+        slotEndAt: endAt,
+        slotIndex: 0,
+        slotTitle: newEventTitle.trim(),
+        isDone: false,
+        done: false,
+      }];
 
       const response = editingEvent 
         ? await updateEvent(editingEvent.id, {
+            status: 'active', // 기본 상태
+            startAt: startAt,
+            endAt: endAt,
+            color: color,
+            slots: slots,
+            // 호환성 필드
             title: newEventTitle.trim(),
             date: startDate,
             description: newEventDescription.trim() || undefined,
             start_at: startAt,
             end_at: endAt,
-            color: color,
           })
         : await createEvent({
+            status: 'active', // 기본 상태
+            startAt: startAt,
+            endAt: endAt,
+            color: color,
+            slots: slots,
+            // 호환성 필드
             title: newEventTitle.trim(),
             date: startDate,
             description: newEventDescription.trim() || undefined,
             start_at: startAt,
             end_at: endAt,
-            color: color,
           });
 
       if (response.success && response.data) {
@@ -361,7 +399,9 @@ const CalendarScreen: React.FC = () => {
 
   const handleEditEvent = (event: Event) => {
     setEditingEvent(event);
-    setNewEventTitle(event.title);
+    // title이 없으면 slots[0]?.slotTitle 사용
+    const eventTitle = event.title || event.slots?.[0]?.slotTitle || '';
+    setNewEventTitle(eventTitle);
     setNewEventDescription(event.description || '');
     const range = getEventDateRange(event);
     setNewEventStartDate(range.start);
@@ -473,6 +513,17 @@ const CalendarScreen: React.FC = () => {
                             const isStart = currentObj.isSame(startObj, 'day');
                             const isEnd = currentObj.isSame(endObj, 'day');
                             
+                            // 현재 주의 첫날과 마지막날 확인
+                            const weekStart = currentObj.startOf('week');
+                            const weekEnd = currentObj.endOf('week');
+                            const isWeekStart = currentObj.isSame(weekStart, 'day');
+                            const isWeekEnd = currentObj.isSame(weekEnd, 'day');
+                            
+                            // 일정이 주의 시작일 이전에 시작하는지
+                            const startsBeforeWeek = startObj.isBefore(weekStart, 'day');
+                            // 일정이 주의 종료일 이후에 끝나는지
+                            const endsAfterWeek = endObj.isAfter(weekEnd, 'day');
+                            
                             return (
                               <View 
                                 key={event.id} 
@@ -480,8 +531,8 @@ const CalendarScreen: React.FC = () => {
                                   styles.eventRangeBar,
                                   { 
                                     backgroundColor: eventColor,
-                                    marginLeft: isStart ? 2 : -1,
-                                    marginRight: isEnd ? 2 : -1,
+                                    marginLeft: isStart ? 2 : (isWeekStart && startsBeforeWeek ? 0 : -1),
+                                    marginRight: isEnd ? 2 : (isWeekEnd && endsAfterWeek ? 0 : -1),
                                     paddingLeft: isStart ? 4 : 0,
                                     paddingRight: isEnd ? 4 : 0,
                                     borderTopLeftRadius: isStart ? 4 : 0,
@@ -497,7 +548,7 @@ const CalendarScreen: React.FC = () => {
                                     numberOfLines={1}
                                     ellipsizeMode="tail"
                                   >
-                                    {event.title}
+                                    {event.title || event.slots?.[0]?.slotTitle || '일정'}
                                   </Text>
                                 )}
                               </View>
@@ -506,10 +557,11 @@ const CalendarScreen: React.FC = () => {
                           {/* 단일 일정 라벨들 - 세로로 배치 */}
                           {singleEvents.map((event) => {
                             const eventColor = getEventColor(event);
+                            const eventTitle = event.title || event.slots?.[0]?.slotTitle || '일정';
                             return (
                               <View key={event.id} style={[styles.eventLabel, { backgroundColor: eventColor }]}>
                                 <Text style={styles.eventLabelText} numberOfLines={1} ellipsizeMode="tail">
-                                  {event.title}
+                                  {eventTitle}
                                 </Text>
                               </View>
                             );
@@ -720,7 +772,7 @@ const CalendarScreen: React.FC = () => {
                     <View style={styles.eventItemContent}>
                       <View style={[styles.eventColorBar, { backgroundColor: getEventColor(item) }]} />
                       <View style={styles.eventItemTextContainer}>
-                        <Text style={styles.eventTitle}>{item.title}</Text>
+                        <Text style={styles.eventTitle}>{item.title || item.slots?.[0]?.slotTitle || '일정'}</Text>
                         {(() => {
                           const range = getEventDateRange(item);
                           if (range.hasRange && range.start !== range.end) {

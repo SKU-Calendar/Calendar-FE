@@ -52,6 +52,11 @@ export const getColorForEvent = (title: string): string => {
 /**
  * 색상이 없으면 기본 색상 반환
  */
-export const getEventColor = (event: { color?: string; title: string }): string => {
-  return event.color || getColorForEvent(event.title);
+export const getEventColor = (event: { color?: string; title?: string; slots?: Array<{ slotTitle?: string }> }): string => {
+  if (event.color) {
+    return event.color;
+  }
+  // title이 있으면 사용, 없으면 slots[0]?.slotTitle 사용
+  const title = event.title || event.slots?.[0]?.slotTitle || '';
+  return getColorForEvent(title);
 };
