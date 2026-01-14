@@ -8,22 +8,13 @@
 // ========================================
 // true로 설정하면 백엔드 서버 없이 로컬 스토리지(AsyncStorage)를 사용합니다
 // false로 설정하면 실제 백엔드 서버를 사용합니다
-export const USE_MOCK_API = true; // ⚠️ 백엔드 없이 테스트하려면 true로 설정하세요!
+export const USE_MOCK_API = false; // ⚠️ 실제 백엔드 서버 사용
 
 // ========================================
 // 백엔드 서버 URL 설정 (USE_MOCK_API가 false일 때 사용)
 // ========================================
-// ⚠️ 중요: 실제 기기에서 실행하는 경우 localhost 대신 컴퓨터의 IP 주소를 사용해야 합니다!
-// 예: http://192.168.0.5:3000/api
-// IP 주소 확인: ifconfig (macOS/Linux) 또는 ipconfig (Windows)
-// 
-// 환경별 설정:
-// - iOS 시뮬레이터: http://localhost:3000/api
-// - Android 에뮬레이터: http://10.0.2.2:3000/api
-// - 실제 기기: http://[컴퓨터IP주소]:3000/api
-export const API_BASE_URL = __DEV__
-  ? 'http://localhost:3000/api' // ⚠️ 실제 기기 사용 시 IP 주소로 변경 필요! (예: http://192.168.0.5:3000/api)
-  : 'https://your-api-domain.com/api'; // 프로덕션 서버
+// 배포된 백엔드 서버 주소
+export const API_BASE_URL = 'https://calendar-be-d0z4.onrender.com/api';
 
 // 환경 변수로 설정하려면 아래처럼 사용할 수도 있습니다:
 // export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
